@@ -21,7 +21,7 @@ greencode-ai/
         ├── lib/report.js         audit report data + jsPDF renderer
         ├── lib/diff.js           LCS line diff for the report
         ├── lib/monaco.js         local Monaco bundle + theme (no CDN)
-        └── components/           Header, ContextBar, PipelineStream, CodeWorkspace,
+        └── components/           Header, RunBar, ContextBar, PipelineStream, CodeWorkspace,
                                   ImpactPanel, CarbonPayback, GreenScore,
                                   FindingsPanel, ReportModal, Badge
 ```
@@ -117,11 +117,11 @@ cd frontend && npm run build
 ```
 
 Manual UI checklist (http://localhost:3000):
-1. Click each benchmark → **Run pipeline**; the 5 stage cards animate and `agent.log` streams.
+1. Click each benchmark → **Run Pipeline** (or ⌘/Ctrl+Enter); the 5 stage cards animate and `agent.log` streams.
 2. Original pane shows red hotspot lines (hover for details), optimized pane shows emerald changed lines and "Verified equivalent".
 3. Move the grid / hardware / volume controls — impact cards, payback and Green Score update instantly without re-running.
 4. Toggle ₹ / $ in the header.
-5. Edit the optimized code → pill turns "Edited - re-verify" → **Re-verify** runs `/api/verify`.
+5. Edit the optimized code → status bar shows "Edited · re-verify" → **Re-verify** runs `/api/verify`.
 6. **Show the math** expands the SCI formula with the plugged-in numbers.
 7. **Audit Report** → preview modal → **Download PDF** (4-page report incl. side-by-side diff and methodology).
 8. Retry path: paste the Python below; the set rewrite crashes on unhashable lists, the retry runs in strict mode, and the original is kept:
@@ -135,6 +135,7 @@ Manual UI checklist (http://localhost:3000):
    ```
 
 ## Conventions
+- UI palette: neutral surfaces (`canvas` #0A0A0B, `surface` #121215, `line` #27272A in `tailwind.config.js`); emerald only signals gains/success, crimson/rose signals regressions and hotspots.
 - Keep benchmark sources free of backticks and `${` (they're embedded with `String.raw`).
 - New rule-engine rewrites return `(new_source, Change)` and must be safe to re-run until no match remains (`refactor_python` / `refactor_javascript` apply each rule to a fixpoint).
 - Every user-facing metric must carry a `basis` of `measured` or `estimated`.

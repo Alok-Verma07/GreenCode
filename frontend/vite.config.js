@@ -9,6 +9,8 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    // Exposed to the UI so the header can show which backend port the proxy targets.
+    define: { __BACKEND_URL__: JSON.stringify(backend) },
     server: {
       port: 3000,
       strictPort: true,

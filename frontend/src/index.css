@@ -12,122 +12,127 @@
     @apply min-h-full;
   }
   body {
-    @apply bg-ink-950 font-sans text-slate-200 antialiased;
-    background-image:
-      radial-gradient(1200px 600px at 10% -10%, rgba(16, 185, 129, 0.10), transparent 60%),
-      radial-gradient(900px 500px at 100% 0%, rgba(20, 184, 166, 0.06), transparent 60%);
-    background-attachment: fixed;
+    @apply bg-canvas font-sans text-[13px] text-zinc-300 antialiased;
+    font-feature-settings: 'cv11', 'ss01';
   }
   ::selection {
-    @apply bg-emerald-500/30 text-white;
+    @apply bg-zinc-100/20 text-white;
   }
   * {
     scrollbar-width: thin;
-    scrollbar-color: #25392f transparent;
+    scrollbar-color: #3f3f46 transparent;
   }
 }
 
 @layer components {
-  .panel {
-    @apply rounded-2xl border border-white/[0.06] bg-ink-900/80 shadow-card backdrop-blur;
+  /* Surfaces */
+  .surface {
+    @apply rounded-lg border border-line bg-surface;
   }
-  .panel-header {
-    @apply flex items-center justify-between gap-3 border-b border-white/[0.06] px-4 py-3;
+  .section-header {
+    @apply flex h-11 items-center justify-between gap-3 border-b border-line px-4;
   }
-  .panel-title {
-    @apply flex items-center gap-2 text-sm font-semibold tracking-wide text-slate-100;
+  .section-title {
+    @apply flex items-center gap-2 text-[13px] font-medium text-zinc-100;
   }
-  .label {
-    @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500;
+  .micro {
+    @apply font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-zinc-500;
   }
+
+  /* Buttons */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-semibold transition
-      focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 text-[13px] font-medium transition-colors
+      focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400/50 disabled:cursor-not-allowed disabled:opacity-40;
   }
   .btn-primary {
-    @apply btn bg-emerald-500 text-ink-950 shadow-glow hover:bg-emerald-400;
+    @apply btn bg-zinc-100 text-zinc-950 hover:bg-white;
   }
-  .btn-ghost {
-    @apply btn border border-white/10 bg-white/[0.03] text-slate-200 hover:border-emerald-500/40 hover:bg-emerald-500/10;
+  .btn-secondary {
+    @apply btn border border-line bg-surface text-zinc-200 hover:border-line-strong hover:bg-elevated;
   }
-  .chip {
-    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition;
+  .btn-icon {
+    @apply btn h-7 w-7 px-0 text-zinc-400 hover:bg-elevated hover:text-zinc-100;
+  }
+
+  /* Segmented control */
+  .seg-group {
+    @apply inline-flex items-center rounded-md border border-line bg-canvas p-0.5;
   }
   .seg {
-    @apply rounded-lg px-3 py-1.5 text-xs font-semibold transition;
+    @apply inline-flex h-6 items-center gap-1.5 whitespace-nowrap rounded px-2.5 text-xs font-medium text-zinc-500 transition-colors
+      hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-zinc-500;
   }
-  .seg-on {
-    @apply seg bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40;
+  .seg-active {
+    @apply bg-elevated text-zinc-100 shadow-[inset_0_0_0_1px_#3f3f46];
   }
-  .seg-off {
-    @apply seg text-slate-400 hover:bg-white/5 hover:text-slate-200;
-  }
+
   .kbd {
-    @apply rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-slate-400;
+    @apply rounded border border-zinc-300 px-1 font-mono text-[10px] leading-4 text-zinc-500;
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
   }
 }
 
 /* ---------- Monaco annotations ---------- */
 .gc-line-high {
-  background: rgba(239, 68, 68, 0.16);
+  background: rgba(225, 29, 72, 0.12);
 }
 .gc-line-medium {
-  background: rgba(249, 115, 22, 0.12);
+  background: rgba(249, 115, 22, 0.09);
 }
 .gc-line-low {
-  background: rgba(244, 63, 94, 0.07);
+  background: rgba(225, 29, 72, 0.05);
+}
+.gc-line-opt {
+  background: rgba(16, 185, 129, 0.10);
 }
 .gc-glyph-high,
 .gc-glyph-medium,
 .gc-glyph-low,
 .gc-glyph-opt {
-  margin-left: 6px;
-  width: 4px !important;
-  border-radius: 4px;
+  margin-left: 8px;
+  width: 2px !important;
 }
 .gc-glyph-high {
-  background: #ef4444;
+  background: #e11d48;
 }
 .gc-glyph-medium {
   background: #f97316;
 }
 .gc-glyph-low {
-  background: #fb7185;
-  opacity: 0.7;
-}
-.gc-line-opt {
-  background: rgba(16, 185, 129, 0.14);
+  background: #e11d48;
+  opacity: 0.5;
 }
 .gc-glyph-opt {
   background: #10b981;
 }
-.gc-inline-finding::after {
-  content: '';
-}
 
 /* ---------- Range slider ---------- */
 input[type='range'].gc-range {
-  @apply h-1.5 w-full cursor-pointer appearance-none rounded-full bg-ink-600;
+  @apply h-1 w-full cursor-pointer appearance-none rounded-full;
+  background: linear-gradient(to right, #d4d4d8 var(--fill, 0%), #27272a var(--fill, 0%));
 }
 input[type='range'].gc-range::-webkit-slider-thumb {
-  @apply h-4 w-4 appearance-none rounded-full border-2 border-ink-950 bg-emerald-400 shadow-glow;
+  @apply h-3.5 w-3.5 appearance-none rounded-full border border-zinc-400 bg-zinc-100;
 }
 input[type='range'].gc-range::-moz-range-thumb {
-  @apply h-4 w-4 rounded-full border-2 border-ink-950 bg-emerald-400;
+  @apply h-3.5 w-3.5 rounded-full border border-zinc-400 bg-zinc-100;
+}
+input[type='range'].gc-range:focus-visible {
+  @apply outline-none ring-2 ring-zinc-400/50;
 }
 
-.log-scroll::-webkit-scrollbar {
+.thin-scroll::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
-.log-scroll::-webkit-scrollbar-thumb {
-  @apply rounded-full bg-ink-600;
+.thin-scroll::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-zinc-700;
 }
-
-.shimmer-text {
-  background: linear-gradient(90deg, #6ee7b7 0%, #ffffff 50%, #6ee7b7 100%);
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  @apply animate-shimmer;
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }

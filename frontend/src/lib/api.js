@@ -1,6 +1,17 @@
 // Thin client for the FastAPI backend. In dev, Vite proxies /api to :5000.
 const API = import.meta.env.VITE_API_URL || '/api';
 
+/** Port of the FastAPI backend the UI talks to (direct URL, else the Vite proxy target). */
+export function backendPort() {
+  const target = import.meta.env.VITE_API_URL || (typeof __BACKEND_URL__ !== 'undefined' ? __BACKEND_URL__ : '');
+  try {
+    const url = new URL(target, window.location.href);
+    return url.port || (url.protocol === 'https:' ? '443' : '80');
+  } catch {
+    return '5000';
+  }
+}
+
 async function json(res) {
   if (!res.ok) {
     let detail = `${res.status} ${res.statusText}`;

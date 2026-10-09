@@ -1,24 +1,32 @@
 import { useEffect, useRef, useState } from 'react';
 import Editor from '@monaco-editor/react';
-import { Code2, Sparkles, Copy, Check, RefreshCw, ShieldCheck, ShieldAlert, ShieldQuestion, Loader2 } from 'lucide-react';
+import { Copy, Check, RefreshCw, Loader2 } from 'lucide-react';
 
 const EDITOR_OPTIONS = {
   fontFamily: '"JetBrains Mono", ui-monospace, Menlo, monospace',
   fontSize: 12.5,
-  lineHeight: 19,
+  lineHeight: 20,
   minimap: { enabled: false },
   glyphMargin: true,
+  lineNumbersMinChars: 3,
+  lineDecorationsWidth: 6,
   scrollBeyondLastLine: false,
   automaticLayout: true,
   renderLineHighlight: 'line',
   smoothScrolling: true,
-  padding: { top: 10, bottom: 10 },
+  padding: { top: 12, bottom: 12 },
   tabSize: 4,
   wordWrap: 'off',
   overviewRulerBorder: false,
+  overviewRulerLanes: 1,
+  hideCursorInOverviewRuler: true,
   hover: { delay: 150 },
   stickyScroll: { enabled: false },
+  guides: { indentation: true },
+  scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8, useShadows: false },
 };
+
+const EXT = { python: 'py', javascript: 'js', sql: 'sql' };
 
 /** Keeps a Monaco decorations collection in sync with annotation props. */
 function useDecorations(editorRef, monacoRef, annotations, kind) {
@@ -46,7 +54,7 @@ function useDecorations(editorRef, monacoRef, annotations, kind) {
             hoverMessage: { value: a.message },
             glyphMarginHoverMessage: { value: a.message },
             overviewRuler: {
-              color: kind === 'original' ? '#ef4444' : '#10b981',
+              color: kind === 'original' ? '#e11d48' : '#10b981',
               position: monaco.editor.OverviewRulerLane.Left,
             },
           },
@@ -59,24 +67,39 @@ function useDecorations(editorRef, monacoRef, annotations, kind) {
   return () => setReady(true);
 }
 
-function VerificationPill({ status }) {
+const VERIFY_STATE = {
+  passed: { text: 'Verified equivalent', dot: 'bg-emerald-500', cls: 'text-emerald-400' },
+  failed: { text: 'Verification failed', dot: 'bg-crimson', cls: 'text-rose-400' },
+  estimated: { text: 'Static check only', dot: 'bg-amber-400', cls: 'text-amber-300' },
+  stale: { text: 'Edited · re-verify', dot: 'bg-amber-400', cls: 'text-amber-300' },
+};
+
+function VerificationState({ status }) {
   if (!status) return null;
-  const map = {
-    passed: { icon: ShieldCheck, text: 'Verified equivalent', cls: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' },
-    failed: { icon: ShieldAlert, text: 'Verification failed', cls: 'border-red-500/40 bg-red-500/10 text-red-300' },
-    estimated: { icon: ShieldQuestion, text: 'Static check only', cls: 'border-amber-500/40 bg-amber-500/10 text-amber-300' },
-    stale: { icon: ShieldQuestion, text: 'Edited - re-verify', cls: 'border-amber-500/40 bg-amber-500/10 text-amber-300' },
-  };
-  const m = map[status] || map.estimated;
-  const Icon = m.icon;
+  const m = VERIFY_STATE[status] || VERIFY_STATE.estimated;
   return (
-    <span className={`chip py-0.5 text-[11px] ${m.cls}`}>
-      <Icon size={12} /> {m.text}
+    <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${m.cls}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} /> {m.text}
     </span>
   );
 }
 
+function PaneHeader({ name, children, meta }) {
+  return (
+    <div className="flex h-10 items-center justify-between gap-2 border-b border-line bg-surface px-4">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <span className="truncate font-mono text-xs text-zinc-200">{name}</span>
+        {meta}
+      </div>
+      <div className="flex shrink-0 items-center gap-1">{children}</div>
+    </div>
+  );
+}
+
+const editorLoading = <div className="grid h-full place-items-center font-mono text-xs text-zinc-600">Loading editor…</div>;
+
 export default function CodeWorkspace({
+  toolbar,
   language,
   original,
   onOriginalChange,
@@ -85,6 +108,8 @@ export default function CodeWorkspace({
   annotations,
   findingsCount,
   changesCount,
+  complexity,
+  engineLabel,
   verificationStatus,
   onReverify,
   reverifying,
@@ -110,96 +135,112 @@ export default function CodeWorkspace({
     }
   };
 
-  const monacoLang = language === 'sql' ? 'sql' : language;
+  const ext = EXT[language] || 'txt';
+  const lines = original ? original.split('\n').length : 0;
 
   return (
-    <section className="grid gap-3 lg:grid-cols-2">
-      <div className="panel overflow-hidden">
-        <div className="panel-header">
-          <h3 className="panel-title">
-            <Code2 size={15} className="text-red-400" /> Original
-            {findingsCount > 0 && (
-              <span className="chip border-red-500/40 bg-red-500/10 py-0.5 text-[11px] text-red-300">
-                {findingsCount} hotspot{findingsCount === 1 ? '' : 's'}
-              </span>
-            )}
-          </h3>
-          <span className="font-mono text-[11px] uppercase text-slate-500">{language}</span>
-        </div>
-        <div className="h-[520px]">
-          <Editor
-            language={monacoLang}
-            theme="greencode-dark"
-            value={original}
-            onChange={(v) => onOriginalChange(v ?? '')}
-            onMount={(editor, monaco) => {
-              origEditor.current = editor;
-              origMonaco.current = monaco;
-              markOrigReady();
-            }}
-            options={{ ...EDITOR_OPTIONS, readOnly: running }}
-            loading={<div className="grid h-full place-items-center text-xs text-slate-500">Loading editor…</div>}
-          />
-        </div>
-      </div>
+    <section className="surface flex flex-col overflow-hidden">
+      {toolbar}
 
-      <div className="panel overflow-hidden">
-        <div className="panel-header">
-          <h3 className="panel-title">
-            <Sparkles size={15} className="text-emerald-400" /> Optimized
-            {changesCount > 0 && (
-              <span className="chip border-emerald-500/40 bg-emerald-500/10 py-0.5 text-[11px] text-emerald-300">
-                {changesCount} change{changesCount === 1 ? '' : 's'}
-              </span>
-            )}
-          </h3>
-          <div className="flex items-center gap-1.5">
-            <VerificationPill status={hasResult ? verificationStatus : null} />
+      <div className="grid lg:grid-cols-2">
+        <div className="min-w-0">
+          <PaneHeader
+            name={`original.${ext}`}
+            meta={
+              findingsCount > 0 && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-rose-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-crimson" />
+                  {findingsCount} hotspot{findingsCount === 1 ? '' : 's'}
+                </span>
+              )
+            }
+          />
+          <div className="h-[360px] lg:h-[480px]">
+            <Editor
+              language={language}
+              theme="greencode-dark"
+              value={original}
+              onChange={(v) => onOriginalChange(v ?? '')}
+              onMount={(editor, monaco) => {
+                origEditor.current = editor;
+                origMonaco.current = monaco;
+                markOrigReady();
+              }}
+              options={{ ...EDITOR_OPTIONS, readOnly: running }}
+              loading={editorLoading}
+            />
+          </div>
+        </div>
+
+        <div className="min-w-0 border-t border-line lg:border-l lg:border-t-0">
+          <PaneHeader
+            name={`optimized.${ext}`}
+            meta={
+              changesCount > 0 && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-emerald-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  {changesCount} change{changesCount === 1 ? '' : 's'}
+                </span>
+              )
+            }
+          >
             <button
               type="button"
-              className="btn-ghost px-2 py-1 text-xs"
+              className="btn h-7 px-2 text-xs text-zinc-400 hover:bg-elevated hover:text-zinc-100"
               onClick={onReverify}
               disabled={!hasResult || reverifying || running}
               title="Re-run the differential execution test on the (edited) optimized code"
             >
-              {reverifying ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Re-verify
+              {reverifying ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              Re-verify
             </button>
-            <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={copy} disabled={!optimized} title="Copy optimized code">
-              {copied ? <Check size={13} /> : <Copy size={13} />}
+            <button type="button" className="btn-icon" onClick={copy} disabled={!optimized} title="Copy optimized code" aria-label="Copy optimized code">
+              {copied ? <Check size={14} /> : <Copy size={14} />}
             </button>
+          </PaneHeader>
+          <div className="relative h-[360px] lg:h-[480px]">
+            {!hasResult && (
+              <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center bg-canvas">
+                {running ? (
+                  <span className="inline-flex items-center gap-2 font-mono text-xs text-zinc-400">
+                    <Loader2 size={13} className="animate-spin" /> Agents running…
+                  </span>
+                ) : (
+                  <span className="text-xs text-zinc-600">Run the pipeline to generate a verified rewrite</span>
+                )}
+              </div>
+            )}
+            <Editor
+              language={language}
+              theme="greencode-dark"
+              value={optimized}
+              onChange={(v) => onOptimizedChange(v ?? '')}
+              onMount={(editor, monaco) => {
+                optEditor.current = editor;
+                optMonaco.current = monaco;
+                markOptReady();
+              }}
+              options={{ ...EDITOR_OPTIONS, readOnly: running || !hasResult }}
+              loading={editorLoading}
+            />
           </div>
         </div>
-        <div className="relative h-[520px]">
-          {!hasResult && !running && (
-            <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center bg-ink-900/70 backdrop-blur-[1px]">
-              <div className="text-center">
-                <Sparkles className="mx-auto mb-2 text-emerald-500/60" size={28} />
-                <p className="text-sm font-medium text-slate-300">Optimized code appears here</p>
-                <p className="mt-1 text-xs text-slate-500">Run the pipeline to profile, refactor and verify.</p>
-              </div>
-            </div>
-          )}
-          {running && !hasResult && (
-            <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center bg-ink-900/70">
-              <div className="flex items-center gap-2 text-sm text-emerald-300">
-                <Loader2 size={16} className="animate-spin" /> Agents at work…
-              </div>
-            </div>
-          )}
-          <Editor
-            language={monacoLang}
-            theme="greencode-dark"
-            value={optimized}
-            onChange={(v) => onOptimizedChange(v ?? '')}
-            onMount={(editor, monaco) => {
-              optEditor.current = editor;
-              optMonaco.current = monaco;
-              markOptReady();
-            }}
-            options={{ ...EDITOR_OPTIONS, readOnly: running || !hasResult }}
-            loading={<div className="grid h-full place-items-center text-xs text-slate-500">Loading editor…</div>}
-          />
-        </div>
+      </div>
+
+      <div className="flex h-8 items-center gap-4 overflow-x-auto border-t border-line px-4 font-mono text-[11px] text-zinc-500 no-scrollbar">
+        <span className="shrink-0 uppercase">{language}</span>
+        <span className="shrink-0">{lines} lines</span>
+        {complexity && (
+          <span className="shrink-0">
+            <span className="text-rose-400">{complexity.from}</span>
+            <span className="px-1.5 text-zinc-600">→</span>
+            <span className={complexity.to !== complexity.from ? 'text-emerald-400' : 'text-zinc-400'}>{complexity.to}</span>
+          </span>
+        )}
+        <span className="ml-auto flex shrink-0 items-center gap-4">
+          {engineLabel && <span>{engineLabel}</span>}
+          <VerificationState status={hasResult ? verificationStatus : null} />
+        </span>
       </div>
     </section>
   );

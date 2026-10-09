@@ -69,7 +69,7 @@ export const GRADE_COLORS = {
   C: '#facc15',
   D: '#fb923c',
   E: '#f97316',
-  F: '#ef4444',
+  F: '#e11d48',
 };
 
 export function gridPrice(regionId) {

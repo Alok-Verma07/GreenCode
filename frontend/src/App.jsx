@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Play, Square, Braces, Database, FileCode2, Undo2, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import Header from './components/Header.jsx';
+import RunBar from './components/RunBar.jsx';
 import ContextBar from './components/ContextBar.jsx';
 import PipelineStream, { STAGES } from './components/PipelineStream.jsx';
 import CodeWorkspace from './components/CodeWorkspace.jsx';
@@ -11,9 +12,9 @@ import FindingsPanel from './components/FindingsPanel.jsx';
 import ReportModal from './components/ReportModal.jsx';
 import { BENCHMARKS, LANGUAGES, getBenchmark } from './data/benchmarks.js';
 import { computeImpact } from './lib/carbon.js';
-import { ping, streamOptimize, verify } from './lib/api.js';
+import { backendPort, ping, streamOptimize, verify } from './lib/api.js';
 
-const LANG_ICONS = { python: FileCode2, javascript: Braces, sql: Database };
+const BACKEND_PORT = backendPort();
 const idleStages = () => Object.fromEntries(STAGES.map((s) => [s.id, { status: 'idle', summary: '', elapsed: null }]));
 const normalize = (s) => (s || '').replace(/\s+$/, '');
 
@@ -282,10 +283,33 @@ export default function App() {
   const benchmark = getBenchmark(benchmarkId);
   const reportTitle = benchmark?.name || `Custom ${LANGUAGES.find((l) => l.id === language)?.label} code`;
 
+  // Cmd/Ctrl+Enter runs the pipeline (captured before Monaco's own binding).
+  const runRef = useRef(null);
+  runRef.current = !running && code.trim() ? run : null;
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && runRef.current) {
+        e.preventDefault();
+        e.stopPropagation();
+        runRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
+
+  const engineLabel = result
+    ? result.engine.type === 'llm'
+      ? `groq · ${result.engine.model}`
+      : `rule engine${result.engine.rule_mode && result.engine.rule_mode !== 'full' ? ` · ${result.engine.rule_mode}` : ''}`
+    : null;
+
   return (
     <div className="min-h-screen">
       <Header
         backend={backend}
+        port={BACKEND_PORT}
+        project={reportTitle}
         useLlm={useLlm}
         setUseLlm={setUseLlm}
         currency={ctx.currency}
@@ -294,77 +318,32 @@ export default function App() {
         onReport={() => setReportOpen(true)}
       />
 
-      <main className="mx-auto max-w-[1600px] space-y-4 px-4 py-4 lg:px-6">
-        <ContextBar ctx={ctx} setCtx={setCtx} />
-
-        {/* Benchmarks + run controls */}
-        <section className="panel flex flex-wrap items-center gap-3 p-3">
-          <span className="label pl-1">Benchmarks</span>
-          <div className="flex flex-1 flex-wrap gap-2">
-            {BENCHMARKS.map((b) => {
-              const Icon = LANG_ICONS[b.language];
-              const on = b.id === benchmarkId;
-              return (
-                <button
-                  key={b.id}
-                  type="button"
-                  disabled={running}
-                  onClick={() => selectBenchmark(b.id)}
-                  title={b.description}
-                  className={`group flex min-w-[190px] flex-1 items-start gap-2.5 rounded-xl border px-3 py-2 text-left transition disabled:opacity-50 ${
-                    on
-                      ? 'border-emerald-500/50 bg-emerald-500/10 shadow-glow'
-                      : 'border-white/[0.06] bg-white/[0.02] hover:border-emerald-500/30 hover:bg-white/[0.04]'
-                  }`}
-                >
-                  <Icon size={16} className={`mt-0.5 shrink-0 ${on ? 'text-emerald-300' : 'text-slate-500 group-hover:text-slate-300'}`} />
-                  <span>
-                    <span className={`block text-xs font-semibold ${on ? 'text-emerald-200' : 'text-slate-200'}`}>{b.name}</span>
-                    <span className="block text-[10.5px] leading-snug text-slate-500">{b.tagline}</span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label className="label" htmlFor="lang">Language</label>
-            <select
-              id="lang"
-              value={language}
-              disabled={running}
-              onChange={(e) => changeLanguage(e.target.value)}
-              className="rounded-lg border border-white/10 bg-ink-800 px-2.5 py-2 text-xs font-semibold text-slate-100 outline-none focus:border-emerald-500/60"
-            >
-              {LANGUAGES.map((l) => (
-                <option key={l.id} value={l.id}>{l.label}</option>
-              ))}
-            </select>
-            {optimizedDirty && (
-              <button type="button" className="btn-ghost py-2 text-xs" onClick={resetOptimized} title="Discard edits to the optimized code">
-                <Undo2 size={14} /> Reset
-              </button>
-            )}
-            {running ? (
-              <button type="button" className="btn-ghost border-red-500/40 py-2 text-red-300" onClick={stop}>
-                <Square size={14} /> Stop
-              </button>
-            ) : (
-              <button type="button" className="btn-primary py-2" onClick={run} disabled={!code.trim()}>
-                <Play size={15} /> Run pipeline
-              </button>
-            )}
-          </div>
-        </section>
-
+      <main className="mx-auto max-w-[1440px] space-y-4 px-4 py-6 sm:px-6">
         {stale && !running && (
-          <div className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] px-4 py-2 text-xs text-amber-200">
-            <AlertTriangle size={14} /> The original code changed since the last run - results below refer to the previous version. Run the pipeline again to refresh.
+          <div className="flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.04] px-4 py-2.5 text-xs text-amber-200">
+            <AlertTriangle size={14} className="shrink-0" />
+            Original code changed since the last run. Results below refer to the previous version.
           </div>
         )}
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
           <CodeWorkspace
+            toolbar={
+              <RunBar
+                benchmarks={BENCHMARKS}
+                benchmarkId={benchmarkId}
+                onSelectBenchmark={selectBenchmark}
+                languages={LANGUAGES}
+                language={language}
+                onLanguageChange={changeLanguage}
+                running={running}
+                canRun={!!code.trim()}
+                onRun={run}
+                onStop={stop}
+                showReset={optimizedDirty}
+                onReset={resetOptimized}
+              />
+            }
             language={language}
             original={code}
             onOriginalChange={onOriginalChange}
@@ -373,14 +352,20 @@ export default function App() {
             annotations={result?.annotations}
             findingsCount={result?.profile.original.findings.length || 0}
             changesCount={result?.changes.length || 0}
+            complexity={result ? { from: result.profile.original.complexity, to: result.profile.optimized.complexity } : null}
+            engineLabel={engineLabel}
             verificationStatus={verificationStatus}
             onReverify={reverify}
             reverifying={reverifying}
             running={running}
             hasResult={!!result}
           />
-          <PipelineStream stages={stages} logs={logs} running={running} error={error} />
+          <div className="relative">
+            <PipelineStream stages={stages} logs={logs} running={running} error={error} />
+          </div>
         </div>
+
+        <ContextBar ctx={ctx} setCtx={setCtx} />
 
         <ImpactPanel
           impact={impact}
@@ -390,16 +375,16 @@ export default function App() {
           callsPerDay={ctx.callsPerDay}
         />
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+        <div className="grid gap-4 lg:grid-cols-2">
           <GreenScore impact={impact} ctx={ctx} />
           <CarbonPayback impact={impact} basis={measurements?.basis.carbon} callsPerDay={ctx.callsPerDay} />
         </div>
 
         <FindingsPanel result={result} verification={verification} />
 
-        <footer className="pb-6 pt-2 text-center text-[11px] text-slate-600">
-          GreenCode AI · SCI per Green Software Foundation (ISO/IEC 21031) · Measurements from sandboxed differential execution ·
-          Estimates are labelled.
+        <footer className="flex flex-col gap-1 border-t border-line pt-5 pb-2 font-mono text-[11px] text-zinc-600 sm:flex-row sm:justify-between">
+          <span>SCI per Green Software Foundation · ISO/IEC 21031</span>
+          <span>Measured = sandboxed differential execution · Estimated = static model</span>
         </footer>
       </main>
 
